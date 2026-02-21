@@ -26,22 +26,20 @@ export async function POST() {
     );
   }
 
-  // Get cart items with course details
+  // Get cart items — filter PUBLISHED at DB level (not JS-side) to avoid enum comparison issues
   const cartItems = await prisma.cartItem.findMany({
-    where: { clientId: user.id },
+    where: {
+      clientId: user.id,
+      course: { status: "PUBLISHED" },
+    },
     include: {
       course: {
-        select: { id: true, title: true, price: true, thumbnailUrl: true, status: true },
+        select: { id: true, title: true, price: true, thumbnailUrl: true },
       },
     },
   });
 
-  // Filter to only published courses
-  const publishedItems = cartItems.filter(
-    (item) => item.course.status === "PUBLISHED"
-  );
-
-  if (publishedItems.length === 0) {
+  if (cartItems.length === 0) {
     return NextResponse.json(
       { error: "Koszyk nie zawiera żadnych opublikowanych kursów." },
       { status: 400 }
@@ -49,10 +47,9 @@ export async function POST() {
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const courseIds = publishedItems.map((item) => item.course.id);
+  const courseIds = cartItems.map((item) => item.course.id);
 
-  // Build Stripe line items
-  const lineItems = publishedItems.map((item) => ({
+  const lineItems = cartItems.map((item) => ({
     price_data: {
       currency: "pln",
       product_data: {
@@ -61,7 +58,7 @@ export async function POST() {
           ? { images: [item.course.thumbnailUrl] }
           : {}),
       },
-      unit_amount: item.course.price, // already in grosze
+      unit_amount: item.course.price,
     },
     quantity: 1,
   }));

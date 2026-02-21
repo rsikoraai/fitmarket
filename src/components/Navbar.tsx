@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { SearchBar } from "@/components/SearchBar";
 import { CartIcon } from "@/components/CartIcon";
 import { MobileNavMenu } from "@/components/MobileNavMenu";
@@ -11,6 +12,15 @@ export async function Navbar() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  let isTrainer = false;
+  if (user) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { role: true },
+    });
+    isTrainer = dbUser?.role === "TRAINER";
+  }
+
   return (
     <header className="sticky top-0 z-50 bg-[#111111] border-b border-[#2a2a2a]">
       <div className="mx-auto max-w-7xl px-4 md:px-6 h-16 flex items-center gap-4">
@@ -20,7 +30,7 @@ export async function Navbar() {
           <span className="text-[#10B981]">Market</span>
         </Link>
 
-        {/* Search bar — hidden on mobile, visible on md+ */}
+        {/* Search bar — hidden on mobile */}
         <div className="hidden md:flex flex-1 justify-center">
           <Suspense
             fallback={
@@ -31,13 +41,12 @@ export async function Navbar() {
           </Suspense>
         </div>
 
-        {/* Spacer on mobile so cart+hamburger go to the right */}
         <div className="flex-1 md:hidden" />
 
         {/* Right side */}
         <div className="shrink-0 flex items-center gap-1">
-          {/* Cart — always visible */}
-          <CartIcon />
+          {/* Cart — only for guests and clients, not trainers */}
+          {!isTrainer && <CartIcon />}
 
           {/* Desktop auth links */}
           <div className="hidden md:flex items-center gap-1">

@@ -2,24 +2,27 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ShoppingCart, Check, BookOpen, Pencil } from "lucide-react";
+import { ShoppingCart, Check, BookOpen, Pencil, Lock } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 
 interface CourseActionsProps {
   courseId: string;
   hasPurchased: boolean;
   isOwner: boolean;
+  isTrainer: boolean;
 }
 
 export function CourseActions({
   courseId,
   hasPurchased,
   isOwner,
+  isTrainer,
 }: CourseActionsProps) {
   const router = useRouter();
   const { isInCart, addToCart, isLoading } = useCart();
   const inCart = isInCart(courseId);
 
+  // Owner — edit button
   if (isOwner) {
     return (
       <Link
@@ -32,6 +35,17 @@ export function CourseActions({
     );
   }
 
+  // Trainer viewing someone else's course — cannot purchase
+  if (isTrainer) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] px-4 py-3 text-sm text-[#6b7280]">
+        <Lock className="h-4 w-4 shrink-0" />
+        Konto trenera nie może kupować kursów. Zaloguj się jako klient.
+      </div>
+    );
+  }
+
+  // Already purchased
   if (hasPurchased) {
     return (
       <Link
@@ -44,6 +58,7 @@ export function CourseActions({
     );
   }
 
+  // Loading cart state
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -53,6 +68,7 @@ export function CourseActions({
     );
   }
 
+  // In cart
   if (inCart) {
     return (
       <Link

@@ -64,11 +64,21 @@ export default async function CoursePage({
   }
 
   let hasPurchased = false;
-  if (user && !isOwner) {
-    const purchase = await prisma.purchase.findFirst({
-      where: { clientId: user.id, courseId: id, status: "COMPLETED" },
+  let isTrainer = false;
+
+  if (user) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { role: true },
     });
-    hasPurchased = !!purchase;
+    isTrainer = dbUser?.role === "TRAINER";
+
+    if (!isOwner && !isTrainer) {
+      const purchase = await prisma.purchase.findFirst({
+        where: { clientId: user.id, courseId: id, status: "COMPLETED" },
+      });
+      hasPurchased = !!purchase;
+    }
   }
 
   const materialCount = course.materials.length;
@@ -107,6 +117,7 @@ export default async function CoursePage({
         courseId={course.id}
         hasPurchased={hasPurchased}
         isOwner={isOwner}
+        isTrainer={isTrainer}
       />
     </div>
   );

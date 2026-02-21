@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Layers } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 import { CourseCard } from "@/components/CourseCard";
 import { CategoryFilter } from "@/components/CategoryFilter";
 
@@ -18,34 +19,53 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const category = params.category ?? "";
   const sort = params.sort ?? "newest";
 
-  const courses = await prisma.course.findMany({
-    where: {
-      status: "PUBLISHED",
-      ...(category ? { category } : {}),
-      ...(query
-        ? {
-            OR: [
-              { title: { contains: query, mode: "insensitive" } },
-              { description: { contains: query, mode: "insensitive" } },
-            ],
-          }
-        : {}),
+  // Fetch courses + user role in parallel
+  const supabase = await createClient();
+  const [
+    courses,
+    {
+      data: { user },
     },
-    orderBy:
-      sort === "cheapest"
-        ? { price: "asc" }
-        : sort === "popular"
-          ? { purchases: { _count: "desc" } }
-          : { createdAt: "desc" },
-    include: {
-      trainer: {
-        select: {
-          displayName: true,
-          avatarUrl: true,
+  ] = await Promise.all([
+    prisma.course.findMany({
+      where: {
+        status: "PUBLISHED",
+        ...(category ? { category } : {}),
+        ...(query
+          ? {
+              OR: [
+                { title: { contains: query, mode: "insensitive" } },
+                { description: { contains: query, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
+      orderBy:
+        sort === "cheapest"
+          ? { price: "asc" }
+          : sort === "popular"
+            ? { purchases: { _count: "desc" } }
+            : { createdAt: "desc" },
+      include: {
+        trainer: {
+          select: {
+            displayName: true,
+            avatarUrl: true,
+          },
         },
       },
-    },
-  });
+    }),
+    supabase.auth.getUser(),
+  ]);
+
+  let isTrainer = false;
+  if (user) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { role: true },
+    });
+    isTrainer = dbUser?.role === "TRAINER";
+  }
 
   const count = courses.length;
   const countLabel =
@@ -84,7 +104,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 
       {/* Course grid */}
       <div className="mx-auto max-w-7xl px-4 md:px-6 py-8">
-        {/* Results header */}
         <p className="text-sm text-[#6b7280] mb-6">
           {countLabel}
           {query && (
@@ -97,7 +116,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         {courses.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {courses.map((course) => (
-              <CourseCard key={course.id} course={course} />
+              <CourseCard key={course.id} course={course} isTrainer={isTrainer} />
             ))}
           </div>
         ) : (

@@ -17,9 +17,10 @@ interface CourseCardProps {
       avatarUrl: string | null;
     };
   };
+  isTrainer?: boolean;
 }
 
-export function CourseCard({ course }: CourseCardProps) {
+export function CourseCard({ course, isTrainer = false }: CourseCardProps) {
   return (
     <div className="group flex flex-col rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] overflow-hidden hover:border-[#10B981]/50 transition-colors duration-200">
       {/* Thumbnail */}
@@ -101,7 +102,7 @@ export function CourseCard({ course }: CourseCardProps) {
           <span className="text-base font-bold text-white">
             {formatPrice(course.price)}
           </span>
-          <AddToCartButton courseId={course.id} variant="card" />
+          {!isTrainer && <AddToCartButton courseId={course.id} variant="card" />}
         </div>
       </div>
     </div>
