@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   useCallback,
   type ReactNode,
 } from "react";
@@ -36,45 +37,76 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cartItems, setCartItems] = useState<string[]>([]);
   const [isAuth, setIsAuth] = useState<boolean | null>(null);
 
+  // Prevent concurrent init() calls — only the latest one applies its result
+  const initSeqRef = useRef(0);
+
   useEffect(() => {
     const supabase = createClient();
 
     const init = async () => {
+      const mySeq = ++initSeqRef.current;
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
+      // Bail if a newer init() has started
+      if (initSeqRef.current !== mySeq) return;
+
       if (user) {
         setIsAuth(true);
 
-        // Fetch DB cart
+        // 1. Fetch current DB cart
         let dbIds: string[] = [];
         try {
           const res = await fetch("/api/cart");
           if (res.ok) {
             const data = await res.json();
             dbIds = data.courseIds ?? [];
+          } else {
+            console.error("[cart] GET /api/cart failed:", res.status);
           }
-        } catch {
-          // network error — proceed with empty DB cart
+        } catch (e) {
+          console.error("[cart] GET /api/cart network error:", e);
         }
 
-        // Merge localStorage items into DB if any
+        if (initSeqRef.current !== mySeq) return;
+
+        // 2. Merge localStorage → DB if anything pending
         const localIds = getLocalCart();
         if (localIds.length > 0) {
-          const mergeRes = await fetch("/api/cart/merge", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ courseIds: localIds }),
-          });
-          localStorage.removeItem(STORAGE_KEY);
-          if (mergeRes.ok) {
-            const mergeData = await mergeRes.json();
-            setCartItems(mergeData.courseIds ?? []);
-          } else {
-            setCartItems([...new Set([...dbIds, ...localIds])]);
+          console.log(`[cart] Merging ${localIds.length} local items to DB:`, localIds);
+
+          let merged: string[] = [];
+          try {
+            const mergeRes = await fetch("/api/cart/merge", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ courseIds: localIds }),
+            });
+
+            localStorage.removeItem(STORAGE_KEY);
+
+            if (mergeRes.ok) {
+              const mergeData = await mergeRes.json();
+              merged = mergeData.courseIds ?? [];
+              console.log(`[cart] Merge success. DB cart:`, merged);
+            } else {
+              const errText = await mergeRes.text().catch(() => "");
+              console.error(`[cart] Merge failed (${mergeRes.status}):`, errText);
+              // Merge failed — use DB state only (accurate, not misleading)
+              merged = dbIds;
+            }
+          } catch (e) {
+            console.error("[cart] Merge network error:", e);
+            localStorage.removeItem(STORAGE_KEY);
+            merged = dbIds;
           }
+
+          if (initSeqRef.current !== mySeq) return;
+          setCartItems(merged);
         } else {
+          if (initSeqRef.current !== mySeq) return;
           setCartItems(dbIds);
         }
       } else {
@@ -103,15 +135,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addToCart = useCallback(
     async (courseId: string) => {
       if (isAuth) {
-        const res = await fetch("/api/cart", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ courseId }),
-        });
-        if (res.ok) {
-          setCartItems((prev) =>
-            prev.includes(courseId) ? prev : [...prev, courseId]
-          );
+        try {
+          const res = await fetch("/api/cart", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ courseId }),
+          });
+          if (res.ok) {
+            setCartItems((prev) =>
+              prev.includes(courseId) ? prev : [...prev, courseId]
+            );
+          } else {
+            console.error("[cart] POST /api/cart failed:", res.status, await res.text().catch(() => ""));
+          }
+        } catch (e) {
+          console.error("[cart] POST /api/cart network error:", e);
         }
       } else {
         const current = getLocalCart();
@@ -127,7 +165,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const removeFromCart = useCallback(
     async (courseId: string) => {
-      // Optimistic update
       setCartItems((prev) => prev.filter((id) => id !== courseId));
 
       if (isAuth) {
@@ -135,7 +172,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ courseId }),
-        });
+        }).catch((e) => console.error("[cart] DELETE /api/cart error:", e));
       } else {
         const updated = getLocalCart().filter((id) => id !== courseId);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));

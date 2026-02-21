@@ -13,7 +13,6 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Only CLIENTs can purchase
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
     select: { role: true },
@@ -26,7 +25,19 @@ export async function POST() {
     );
   }
 
-  // Get cart items — filter PUBLISHED at DB level (not JS-side) to avoid enum comparison issues
+  // Diagnostic: fetch ALL cart items first (without status filter)
+  const allCartItems = await prisma.cartItem.findMany({
+    where: { clientId: user.id },
+    include: {
+      course: { select: { id: true, title: true, status: true } },
+    },
+  });
+
+  console.log(`[checkout] userId=${user.id} allCartItems=${allCartItems.length}`,
+    allCartItems.map(i => ({ courseId: i.courseId, status: i.course.status, title: i.course.title }))
+  );
+
+  // Filter at DB level — PUBLISHED only
   const cartItems = await prisma.cartItem.findMany({
     where: {
       clientId: user.id,
@@ -39,7 +50,12 @@ export async function POST() {
     },
   });
 
+  console.log(`[checkout] publishedCartItems=${cartItems.length}`,
+    cartItems.map(i => ({ courseId: i.courseId, title: i.course.title }))
+  );
+
   if (cartItems.length === 0) {
+    console.warn(`[checkout] FAIL: no published items. allItems=${allCartItems.length}, userId=${user.id}`);
     return NextResponse.json(
       { error: "Koszyk nie zawiera żadnych opublikowanych kursów." },
       { status: 400 }
@@ -75,5 +91,6 @@ export async function POST() {
     },
   });
 
+  console.log(`[checkout] session created: ${session.id} for ${courseIds.length} courses`);
   return NextResponse.json({ url: session.url });
 }

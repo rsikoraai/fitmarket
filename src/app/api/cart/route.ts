@@ -17,6 +17,7 @@ export async function GET() {
     select: { courseId: true },
   });
 
+  console.log(`[cart GET] userId=${user.id} items=${items.length}`);
   return NextResponse.json({ courseIds: items.map((i) => i.courseId) });
 }
 
@@ -37,12 +38,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "courseId required" }, { status: 400 });
   }
 
+  // Validate course exists before inserting (prevents FK error)
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: { id: true, status: true },
+  });
+
+  if (!course) {
+    console.error(`[cart POST] courseId=${courseId} not found in DB`);
+    return NextResponse.json({ error: "Kurs nie istnieje" }, { status: 404 });
+  }
+
   await prisma.cartItem.upsert({
     where: { clientId_courseId: { clientId: user.id, courseId } },
     create: { clientId: user.id, courseId },
     update: {},
   });
 
+  console.log(`[cart POST] userId=${user.id} added courseId=${courseId} status=${course.status}`);
   return NextResponse.json({ ok: true });
 }
 

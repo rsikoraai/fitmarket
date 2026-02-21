@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 
-// POST /api/cart/merge
-// body: { courseIds: string[] }
-// Merges provided courseIds into the user's cart_items (skipping duplicates and purchased courses)
-// Returns the updated full cart state
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const {
@@ -13,6 +9,7 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    console.warn("[merge] Unauthorized merge attempt");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -21,8 +18,21 @@ export async function POST(req: NextRequest) {
     ? body.courseIds
     : [];
 
+  console.log(`[merge] userId=${user.id} incoming courseIds=${courseIds.length}:`, courseIds);
+
   if (courseIds.length > 0) {
-    // Skip already purchased courses
+    // Validate courses exist in DB to avoid FK violations
+    const existingCourses = await prisma.course.findMany({
+      where: { id: { in: courseIds } },
+      select: { id: true, status: true },
+    });
+    const existingIds = new Set(existingCourses.map((c) => c.id));
+    const invalidIds = courseIds.filter((id) => !existingIds.has(id));
+    if (invalidIds.length > 0) {
+      console.warn(`[merge] Dropping invalid courseIds (not in DB):`, invalidIds);
+    }
+
+    // Skip already purchased and invalid courses
     const purchased = await prisma.purchase.findMany({
       where: {
         clientId: user.id,
@@ -32,7 +42,12 @@ export async function POST(req: NextRequest) {
       select: { courseId: true },
     });
     const purchasedIds = new Set(purchased.map((p) => p.courseId));
-    const toAdd = courseIds.filter((id) => !purchasedIds.has(id));
+
+    const toAdd = courseIds.filter(
+      (id) => existingIds.has(id) && !purchasedIds.has(id)
+    );
+
+    console.log(`[merge] toAdd=${toAdd.length} skipped(purchased)=${purchased.length} skipped(invalid)=${invalidIds.length}`);
 
     if (toAdd.length > 0) {
       await prisma.$transaction(
@@ -44,14 +59,15 @@ export async function POST(req: NextRequest) {
           })
         )
       );
+      console.log(`[merge] Inserted ${toAdd.length} items to cart_items`);
     }
   }
 
-  // Return updated cart state
   const items = await prisma.cartItem.findMany({
     where: { clientId: user.id },
     select: { courseId: true },
   });
 
+  console.log(`[merge] Final DB cart size: ${items.length}`);
   return NextResponse.json({ courseIds: items.map((i) => i.courseId) });
 }
