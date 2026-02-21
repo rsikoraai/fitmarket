@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest init:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npx prisma init:*)",
+      "Bash(npx prisma validate:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma migrate:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(timeout 5 bash -c 'echo >/dev/tcp/aws-1-eu-west-1.pooler.supabase.com/6543')",
+      "Bash(timeout 10 psql:*)",
+      "Bash(apt list:*)",
+      "Bash(node -e \":*)",
+      "Bash(node -e:*)",
+      "Bash(DATABASE_URL='postgresql://postgres.fcaxcfubirtbuveqoyqs:Xgo161026mea%21@aws-1-eu-west-1.pooler.supabase.com:6543/postgres' npx prisma migrate diff:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx next build:*)",
+      "Bash(npx tsx:*)",
+      "Bash(curl:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm ls:*)",
+      "Bash(gh:*)",
+      "Bash(git --version:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

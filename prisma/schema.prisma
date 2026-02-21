@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  TRAINER
+  CLIENT
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum MaterialType {
+  VIDEO
+  PDF
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  role      Role
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  trainerProfile TrainerProfile?
+  cartItems      CartItem[]
+  purchases      Purchase[]
+
+  @@map("users")
+}
+
+model TrainerProfile {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  displayName     String   @map("display_name")
+  bio             String?
+  avatarUrl       String?  @map("avatar_url")
+  specializations String[]
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courses Course[]
+
+  @@map("trainer_profiles")
+}
+
+model Course {
+  id           String       @id @default(uuid()) @db.Uuid
+  trainerId    String       @map("trainer_id") @db.Uuid
+  title        String
+  description  String
+  price        Int
+  category     String
+  thumbnailUrl String?      @map("thumbnail_url")
+  status       CourseStatus @default(DRAFT)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  trainer   TrainerProfile   @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  materials CourseMaterial[]
+  cartItems CartItem[]
+  purchases Purchase[]
+
+  @@map("courses")
+}
+
+model CourseMaterial {
+  id        String       @id @default(uuid()) @db.Uuid
+  courseId  String       @map("course_id") @db.Uuid
+  type      MaterialType
+  title     String
+  fileUrl   String       @map("file_url")
+  position  Int
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("course_materials")
+}
+
+model CartItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  clientId  String   @map("client_id") @db.Uuid
+  courseId  String   @map("course_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client User   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, courseId])
+  @@map("cart_items")
+}
+
+model Purchase {
+  id              String         @id @default(uuid()) @db.Uuid
+  clientId        String         @map("client_id") @db.Uuid
+  courseId        String         @map("course_id") @db.Uuid
+  stripePaymentId String         @map("stripe_payment_id")
+  amount          Int
+  status          PurchaseStatus @default(PENDING)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  client User   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("purchases")
+}
