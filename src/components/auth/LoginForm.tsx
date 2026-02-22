@@ -7,11 +7,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-export function LoginForm() {
+interface LoginFormProps {
+  redirectTo?: string
+}
+
+export function LoginForm({ redirectTo }: LoginFormProps) {
   const [state, formAction, isPending] = useActionState(loginAction, {})
 
   return (
     <form action={formAction} className="space-y-4">
+      {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
       {state.error && (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.error}

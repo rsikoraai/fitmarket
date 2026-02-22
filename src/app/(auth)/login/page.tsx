@@ -5,7 +5,19 @@ export const metadata: Metadata = {
   title: "Zaloguj się — FitMarket",
 };
 
-export default function LoginPage() {
+interface Props {
+  searchParams: Promise<{ redirectTo?: string }>;
+}
+
+export default async function LoginPage({ searchParams }: Props) {
+  const { redirectTo } = await searchParams;
+  const safeRedirect =
+    typeof redirectTo === "string" &&
+    redirectTo.startsWith("/") &&
+    !redirectTo.startsWith("//")
+      ? redirectTo
+      : undefined;
+
   return (
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-4 bg-[#0a0a0a]">
       <div className="w-full max-w-md rounded-2xl bg-[#111111] border border-[#2a2a2a] p-8">
@@ -15,7 +27,7 @@ export default function LoginPage() {
             Wejdź na swoje konto FitMarket
           </p>
         </div>
-        <LoginForm />
+        <LoginForm redirectTo={safeRedirect} />
       </div>
     </div>
   );

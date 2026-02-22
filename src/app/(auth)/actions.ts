@@ -5,6 +5,14 @@ import { createClient } from "@/lib/supabase/server"
 import { prisma } from "@/lib/prisma"
 import { registerSchema, loginSchema, type AuthActionState } from "@/types"
 
+function getSafeRedirect(formData: FormData): string {
+  const raw = formData.get("redirectTo")
+  if (typeof raw === "string" && raw.startsWith("/") && !raw.startsWith("//")) {
+    return raw
+  }
+  return "/dashboard"
+}
+
 export async function registerAction(
   _prevState: AuthActionState,
   formData: FormData
@@ -64,7 +72,7 @@ export async function registerAction(
 
   // Jeśli sesja istnieje od razu (email confirmation wyłączone) — przekieruj
   if (data.session) {
-    redirect("/dashboard")
+    redirect(getSafeRedirect(formData))
   }
 
   // Supabase wymaga potwierdzenia emaila
@@ -94,7 +102,7 @@ export async function loginAction(
     return { error: "Nieprawidłowy email lub hasło" }
   }
 
-  redirect("/dashboard")
+  redirect(getSafeRedirect(formData))
 }
 
 export async function logoutAction() {

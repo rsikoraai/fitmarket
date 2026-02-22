@@ -13,12 +13,24 @@ export async function Navbar() {
   } = await supabase.auth.getUser();
 
   let isTrainer = false;
+  let displayName: string | undefined;
+
   if (user) {
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
-      select: { role: true },
+      select: {
+        role: true,
+        trainerProfile: { select: { displayName: true } },
+      },
     });
+
     isTrainer = dbUser?.role === "TRAINER";
+
+    if (isTrainer && dbUser?.trainerProfile?.displayName) {
+      displayName = dbUser.trainerProfile.displayName;
+    } else {
+      displayName = user.email?.split("@")[0];
+    }
   }
 
   return (
@@ -49,14 +61,20 @@ export async function Navbar() {
           {!isTrainer && <CartIcon />}
 
           {/* Desktop auth links */}
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-2">
             {user ? (
-              <Link
-                href="/dashboard"
-                className="ml-1 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] px-4 py-1.5 text-sm text-white hover:border-[#10B981] transition-colors"
-              >
-                Panel
-              </Link>
+              <>
+                <span className="text-sm text-[#6b7280]">
+                  Witaj,{" "}
+                  <span className="text-[#9ca3af]">{displayName}</span>
+                </span>
+                <Link
+                  href="/dashboard"
+                  className="rounded-full bg-[#1a1a1a] border border-[#2a2a2a] px-4 py-1.5 text-sm text-white hover:border-[#10B981] transition-colors"
+                >
+                  Panel
+                </Link>
+              </>
             ) : (
               <>
                 <Link
@@ -76,7 +94,7 @@ export async function Navbar() {
           </div>
 
           {/* Mobile hamburger */}
-          <MobileNavMenu isLoggedIn={!!user} />
+          <MobileNavMenu isLoggedIn={!!user} displayName={displayName} />
         </div>
       </div>
     </header>

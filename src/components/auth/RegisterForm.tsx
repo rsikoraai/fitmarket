@@ -21,12 +21,17 @@ const roles = [
   },
 ] as const
 
-export function RegisterForm() {
+interface RegisterFormProps {
+  redirectTo?: string
+}
+
+export function RegisterForm({ redirectTo }: RegisterFormProps) {
   const [state, formAction, isPending] = useActionState(registerAction, {})
   const [selectedRole, setSelectedRole] = useState<"CLIENT" | "TRAINER">("CLIENT")
 
   return (
     <form action={formAction} className="space-y-4">
+      {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
       {state.error && (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.error}

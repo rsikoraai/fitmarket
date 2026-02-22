@@ -339,14 +339,14 @@ export default function CartPage() {
 
             <div className="space-y-3">
               <Link
-                href="/login"
+                href="/login?redirectTo=/koszyk"
                 onClick={() => setShowAuthModal(false)}
                 className="flex items-center justify-center w-full rounded-xl bg-[#10B981] hover:bg-[#0ea570] px-6 py-3 text-sm font-semibold text-black transition-colors"
               >
                 Mam konto — Zaloguj się
               </Link>
               <Link
-                href="/register"
+                href="/register?redirectTo=/koszyk"
                 onClick={() => setShowAuthModal(false)}
                 className="flex items-center justify-center w-full rounded-xl bg-transparent border border-[#2a2a2a] hover:border-[#10B981] px-6 py-3 text-sm font-semibold text-white transition-colors"
               >

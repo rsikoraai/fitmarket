@@ -7,9 +7,10 @@ import { SearchBar } from "@/components/SearchBar";
 
 interface Props {
   isLoggedIn: boolean;
+  displayName?: string;
 }
 
-export function MobileNavMenu({ isLoggedIn }: Props) {
+export function MobileNavMenu({ isLoggedIn, displayName }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -41,13 +42,23 @@ export function MobileNavMenu({ isLoggedIn }: Props) {
 
             <div className="border-t border-[#2a2a2a] pt-3 space-y-2">
               {isLoggedIn ? (
-                <Link
-                  href="/dashboard"
-                  onClick={() => setOpen(false)}
-                  className="block w-full text-center rounded-full bg-[#1a1a1a] border border-[#2a2a2a] px-4 py-2.5 text-sm text-white hover:border-[#10B981] transition-colors"
-                >
-                  Panel
-                </Link>
+                <>
+                  {displayName && (
+                    <p className="text-xs text-[#6b7280] px-1 pb-1">
+                      Zalogowany jako{" "}
+                      <span className="text-[#9ca3af] font-medium">
+                        {displayName}
+                      </span>
+                    </p>
+                  )}
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setOpen(false)}
+                    className="block w-full text-center rounded-full bg-[#1a1a1a] border border-[#2a2a2a] px-4 py-2.5 text-sm text-white hover:border-[#10B981] transition-colors"
+                  >
+                    Panel
+                  </Link>
+                </>
               ) : (
                 <>
                   <Link
