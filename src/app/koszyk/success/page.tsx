@@ -5,6 +5,7 @@ import { CheckCircle2, ShoppingBag } from "lucide-react";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
+import { CartLocalStorageClearer } from "@/components/CartLocalStorageClearer";
 
 interface Props {
   searchParams: Promise<{ session_id?: string }>;
@@ -65,6 +66,9 @@ async function SuccessContent({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="flex flex-col items-center text-center max-w-md mx-auto py-24 px-4">
+      {/* Clear localStorage cart on successful payment */}
+      <CartLocalStorageClearer />
+
       {/* Icon */}
       <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[#10B981]/10">
         <CheckCircle2 className="h-10 w-10 text-[#10B981]" />

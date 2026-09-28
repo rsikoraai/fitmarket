@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { ShoppingCart, Check, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { ShoppingCart, Check, X, Loader2 } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 
 interface AddToCartButtonProps {
@@ -13,7 +13,8 @@ export function AddToCartButton({
   courseId,
   variant = "card",
 }: AddToCartButtonProps) {
-  const { isInCart, addToCart, isLoading } = useCart();
+  const { isInCart, addToCart, removeFromCart, isLoading } = useCart();
+  const [hovered, setHovered] = useState(false);
   const inCart = isInCart(courseId);
 
   if (isLoading) {
@@ -33,23 +34,44 @@ export function AddToCartButton({
   if (inCart) {
     if (variant === "card") {
       return (
-        <Link
-          href="/koszyk"
-          className="flex items-center gap-1.5 rounded-full bg-[#1a1a1a] border border-[#10B981] px-3 py-1.5 text-xs font-semibold text-[#10B981] hover:bg-[#10B981]/10 transition-colors"
+        <button
+          onClick={() => removeFromCart(courseId)}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+            hovered
+              ? "bg-red-500/10 border-red-500/40 text-red-400"
+              : "bg-[#1a1a1a] border-[#10B981] text-[#10B981] hover:bg-[#10B981]/10"
+          }`}
         >
-          <Check className="h-3 w-3" />
-          W koszyku
-        </Link>
+          {hovered ? (
+            <X className="h-3 w-3" />
+          ) : (
+            <Check className="h-3 w-3" />
+          )}
+          {hovered ? "Usuń" : "W koszyku"}
+        </button>
       );
     }
+    // full variant
     return (
-      <Link
-        href="/koszyk"
-        className="flex items-center justify-center gap-2 rounded-xl bg-[#1a1a1a] border border-[#10B981] px-6 py-3 text-sm font-semibold text-[#10B981] hover:bg-[#10B981]/10 transition-colors w-full"
+      <button
+        onClick={() => removeFromCart(courseId)}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className={`flex items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-semibold transition-colors w-full ${
+          hovered
+            ? "bg-red-500/10 border-red-500/40 text-red-400"
+            : "bg-[#1a1a1a] border-[#10B981] text-[#10B981] hover:bg-[#10B981]/10"
+        }`}
       >
-        <Check className="h-4 w-4" />
-        W koszyku — Przejdź do koszyka →
-      </Link>
+        {hovered ? (
+          <X className="h-4 w-4" />
+        ) : (
+          <Check className="h-4 w-4" />
+        )}
+        {hovered ? "Usuń z koszyka" : "W koszyku ✓"}
+      </button>
     );
   }
 

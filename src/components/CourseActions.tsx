@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ShoppingCart, Check, BookOpen, Pencil, Lock } from "lucide-react";
+import { ShoppingCart, Check, X, BookOpen, Pencil, Lock } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 
 interface CourseActionsProps {
@@ -19,7 +20,8 @@ export function CourseActions({
   isTrainer,
 }: CourseActionsProps) {
   const router = useRouter();
-  const { isInCart, addToCart, isLoading } = useCart();
+  const { isInCart, addToCart, removeFromCart, isLoading } = useCart();
+  const [hovered, setHovered] = useState(false);
   const inCart = isInCart(courseId);
 
   // Owner — edit button
@@ -68,16 +70,34 @@ export function CourseActions({
     );
   }
 
-  // In cart
+  // In cart — toggle button + link to cart
   if (inCart) {
     return (
-      <Link
-        href="/koszyk"
-        className="flex items-center justify-center gap-2 rounded-xl bg-[#1a1a1a] border border-[#10B981] px-6 py-3 text-sm font-semibold text-[#10B981] hover:bg-[#10B981]/10 transition-colors w-full"
-      >
-        <Check className="h-4 w-4" />
-        W koszyku — Przejdź do koszyka →
-      </Link>
+      <div className="space-y-3">
+        <button
+          onClick={() => removeFromCart(courseId)}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          className={`flex items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-semibold transition-colors w-full ${
+            hovered
+              ? "bg-red-500/10 border-red-500/40 text-red-400"
+              : "bg-[#1a1a1a] border-[#10B981] text-[#10B981] hover:bg-[#10B981]/10"
+          }`}
+        >
+          {hovered ? (
+            <X className="h-4 w-4" />
+          ) : (
+            <Check className="h-4 w-4" />
+          )}
+          {hovered ? "Usuń z koszyka" : "W koszyku ✓"}
+        </button>
+        <Link
+          href="/koszyk"
+          className="flex items-center justify-center gap-2 rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#10B981] px-6 py-3 text-sm font-semibold text-white transition-colors w-full"
+        >
+          Przejdź do koszyka →
+        </Link>
+      </div>
     );
   }
 

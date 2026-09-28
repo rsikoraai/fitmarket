@@ -86,7 +86,13 @@ export default function CartPage() {
     setCheckoutLoading(true);
     setCheckoutError(null);
     try {
-      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+      // Send current frontend cart as fallback in case DB cart_items is empty
+      // (e.g. merge race after registration)
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courseIds: cartItems }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setCheckoutError(data.error ?? "Wystąpił błąd. Spróbuj ponownie.");

@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -25,20 +25,14 @@ export async function POST() {
     );
   }
 
-  // Diagnostic: fetch ALL cart items first (without status filter)
-  const allCartItems = await prisma.cartItem.findMany({
-    where: { clientId: user.id },
-    include: {
-      course: { select: { id: true, title: true, status: true } },
-    },
-  });
+  // Fallback courseIds sent by the client (in case DB cart is empty due to merge race)
+  const body = await req.json().catch(() => ({}));
+  const fallbackIds: string[] = Array.isArray(body?.courseIds)
+    ? body.courseIds
+    : [];
 
-  console.log(`[checkout] userId=${user.id} allCartItems=${allCartItems.length}`,
-    allCartItems.map(i => ({ courseId: i.courseId, status: i.course.status, title: i.course.title }))
-  );
-
-  // Filter at DB level — PUBLISHED only
-  const cartItems = await prisma.cartItem.findMany({
+  // Fetch PUBLISHED cart items from DB
+  const dbCartItems = await prisma.cartItem.findMany({
     where: {
       clientId: user.id,
       course: { status: "PUBLISHED" },
@@ -50,12 +44,56 @@ export async function POST() {
     },
   });
 
-  console.log(`[checkout] publishedCartItems=${cartItems.length}`,
-    cartItems.map(i => ({ courseId: i.courseId, title: i.course.title }))
+  console.log(
+    `[checkout] userId=${user.id} dbCart=${dbCartItems.length} fallback=${fallbackIds.length}`
   );
 
-  if (cartItems.length === 0) {
-    console.warn(`[checkout] FAIL: no published items. allItems=${allCartItems.length}, userId=${user.id}`);
+  type CheckoutCourse = {
+    id: string;
+    title: string;
+    price: number;
+    thumbnailUrl: string | null;
+  };
+
+  let checkoutCourses: CheckoutCourse[];
+
+  if (dbCartItems.length > 0) {
+    checkoutCourses = dbCartItems.map((i) => i.course);
+  } else if (fallbackIds.length > 0) {
+    // DB cart is empty (merge race) — validate fallback ids against DB
+    console.log(
+      `[checkout] DB cart empty — using fallback courseIds:`,
+      fallbackIds
+    );
+
+    // Exclude already-purchased courses
+    const purchased = await prisma.purchase.findMany({
+      where: {
+        clientId: user.id,
+        courseId: { in: fallbackIds },
+        status: "COMPLETED",
+      },
+      select: { courseId: true },
+    });
+    const purchasedSet = new Set(purchased.map((p) => p.courseId));
+    const unpurchasedIds = fallbackIds.filter((id) => !purchasedSet.has(id));
+
+    const courses = await prisma.course.findMany({
+      where: { id: { in: unpurchasedIds }, status: "PUBLISHED" },
+      select: { id: true, title: true, price: true, thumbnailUrl: true },
+    });
+    checkoutCourses = courses;
+    console.log(
+      `[checkout] Fallback resolved ${courses.length} published courses (skipped ${purchased.length} already purchased)`
+    );
+  } else {
+    checkoutCourses = [];
+  }
+
+  if (checkoutCourses.length === 0) {
+    console.warn(
+      `[checkout] FAIL: no published courses. userId=${user.id} dbCart=${dbCartItems.length} fallback=${fallbackIds.length}`
+    );
     return NextResponse.json(
       { error: "Koszyk nie zawiera żadnych opublikowanych kursów." },
       { status: 400 }
@@ -63,18 +101,16 @@ export async function POST() {
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const courseIds = cartItems.map((item) => item.course.id);
+  const courseIds = checkoutCourses.map((c) => c.id);
 
-  const lineItems = cartItems.map((item) => ({
+  const lineItems = checkoutCourses.map((course) => ({
     price_data: {
       currency: "pln",
       product_data: {
-        name: item.course.title,
-        ...(item.course.thumbnailUrl
-          ? { images: [item.course.thumbnailUrl] }
-          : {}),
+        name: course.title,
+        ...(course.thumbnailUrl ? { images: [course.thumbnailUrl] } : {}),
       },
-      unit_amount: item.course.price,
+      unit_amount: course.price,
     },
     quantity: 1,
   }));
@@ -91,6 +127,8 @@ export async function POST() {
     },
   });
 
-  console.log(`[checkout] session created: ${session.id} for ${courseIds.length} courses`);
+  console.log(
+    `[checkout] session created: ${session.id} for ${courseIds.length} courses`
+  );
   return NextResponse.json({ url: session.url });
 }

@@ -37,7 +37,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cartItems, setCartItems] = useState<string[]>([]);
   const [isAuth, setIsAuth] = useState<boolean | null>(null);
 
-  // Prevent concurrent init() calls — only the latest one applies its result
+  // Prevent concurrent init() calls — only the latest one loads the cart.
+  // isAuth is set eagerly (before bail) so isLoading resolves quickly.
   const initSeqRef = useRef(0);
 
   useEffect(() => {
@@ -50,13 +51,56 @@ export function CartProvider({ children }: { children: ReactNode }) {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Bail if a newer init() has started
-      if (initSeqRef.current !== mySeq) return;
-
       if (user) {
+        // Set auth state immediately, before the bail check.
+        // Multiple concurrent init() calls all set the same value — idempotent.
+        // This ensures isLoading resolves to false even if cart loading is bailed.
         setIsAuth(true);
 
-        // 1. Fetch current DB cart
+        // Only the LATEST init() loads/merges the cart.
+        if (initSeqRef.current !== mySeq) return;
+
+        // Grab localStorage immediately (before any further awaits)
+        const localIds = getLocalCart();
+
+        if (localIds.length > 0) {
+          console.log(
+            `[cart] userId=${user.id} merging ${localIds.length} items:`,
+            localIds
+          );
+
+          let merged: string[] = localIds; // optimistic fallback
+          try {
+            const mergeRes = await fetch("/api/cart/merge", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ courseIds: localIds }),
+            });
+
+            if (mergeRes.ok) {
+              const mergeData = await mergeRes.json();
+              merged = mergeData.courseIds ?? [];
+              console.log(`[cart] Merge success. Final cart:`, merged);
+              localStorage.removeItem(STORAGE_KEY);
+            } else {
+              const errText = await mergeRes.text().catch(() => "");
+              console.error(
+                `[cart] Merge failed (${mergeRes.status}):`,
+                errText
+              );
+              // Keep localStorage intact — next init() will retry
+            }
+          } catch (e) {
+            console.error("[cart] Merge network error:", e);
+            // Keep localStorage intact
+          }
+
+          if (initSeqRef.current !== mySeq) return;
+          setCartItems(merged);
+          return;
+        }
+
+        // No local items — load from DB
         let dbIds: string[] = [];
         try {
           const res = await fetch("/api/cart");
@@ -71,45 +115,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
 
         if (initSeqRef.current !== mySeq) return;
-
-        // 2. Merge localStorage → DB if anything pending
-        const localIds = getLocalCart();
-        if (localIds.length > 0) {
-          console.log(`[cart] Merging ${localIds.length} local items to DB:`, localIds);
-
-          let merged: string[] = [];
-          try {
-            const mergeRes = await fetch("/api/cart/merge", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ courseIds: localIds }),
-            });
-
-            localStorage.removeItem(STORAGE_KEY);
-
-            if (mergeRes.ok) {
-              const mergeData = await mergeRes.json();
-              merged = mergeData.courseIds ?? [];
-              console.log(`[cart] Merge success. DB cart:`, merged);
-            } else {
-              const errText = await mergeRes.text().catch(() => "");
-              console.error(`[cart] Merge failed (${mergeRes.status}):`, errText);
-              // Merge failed — use DB state only (accurate, not misleading)
-              merged = dbIds;
-            }
-          } catch (e) {
-            console.error("[cart] Merge network error:", e);
-            localStorage.removeItem(STORAGE_KEY);
-            merged = dbIds;
-          }
-
-          if (initSeqRef.current !== mySeq) return;
-          setCartItems(merged);
-        } else {
-          if (initSeqRef.current !== mySeq) return;
-          setCartItems(dbIds);
-        }
+        setCartItems(dbIds);
       } else {
+        // Guest — bail check still applies to avoid overwriting a concurrent
+        // SIGNED_IN init() that is in-flight.
+        if (initSeqRef.current !== mySeq) return;
         setIsAuth(false);
         setCartItems(getLocalCart());
       }
@@ -123,6 +133,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (event === "SIGNED_IN") {
         init();
       } else if (event === "SIGNED_OUT") {
+        // Cancel any in-progress init() that might overwrite the cleared state
+        initSeqRef.current++;
         localStorage.removeItem(STORAGE_KEY);
         setCartItems([]);
         setIsAuth(false);
@@ -146,7 +158,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
               prev.includes(courseId) ? prev : [...prev, courseId]
             );
           } else {
-            console.error("[cart] POST /api/cart failed:", res.status, await res.text().catch(() => ""));
+            console.error(
+              "[cart] POST /api/cart failed:",
+              res.status,
+              await res.text().catch(() => "")
+            );
           }
         } catch (e) {
           console.error("[cart] POST /api/cart network error:", e);
